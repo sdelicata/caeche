@@ -15,9 +15,9 @@ type Server struct {
 	httpServer *http.Server
 }
 
-func (server *Server) Start() {
-	log.Debugf("Server starting...")
-	server.httpServer.ListenAndServe()
+func (server *Server) Start() error {
+	log.Debugln("Server starting...")
+	return server.httpServer.ListenAndServe()
 }
 
 func NewServer() *Server {

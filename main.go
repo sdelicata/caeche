@@ -13,5 +13,5 @@ func init() {
 
 func main() {
 	server := server.NewServer()
-	server.Start()
+	log.Fatalln(server.Start())
 }
