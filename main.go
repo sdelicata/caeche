@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/sdelicata/caeche/config"
 	"github.com/sdelicata/caeche/server"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -12,6 +13,13 @@ func init() {
 }
 
 func main() {
-	server := server.NewServer()
+
+	config, err := config.NewConfigFromFile("config.toml")
+	if err != nil {
+		log.Errorf("Error loading config file : %s", err)
+		return
+	}
+
+	server := server.NewServer(config)
 	log.Fatalln(server.Start())
 }
