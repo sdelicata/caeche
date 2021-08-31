@@ -21,5 +21,6 @@ func main() {
 	}
 
 	server := server.NewServer(config)
-	log.Fatalln(server.Start())
+	log.Infoln("Server starting...")
+	log.Fatalln(server.ListenAndServe())
 }
