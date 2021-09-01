@@ -47,6 +47,8 @@ func IsRequestCacheable(req *http.Request) bool {
 	switch {
 	case !IsMethodSafe(req.Method) :
 		return false
+	case IsNoCacheRequest(req) :
+		return false
 	}
 	return true
 }
@@ -57,6 +59,18 @@ func IsMethodSafe(method string) bool {
 		if v == method {
 			return true
 		}
+	}
+	return false
+}
+
+func IsNoCacheRequest(req *http.Request) bool {
+	switch {
+	case req.Header.Get("Cache-Control") == "no-cache" :
+		return true
+	case req.Header.Get("Cache-Control") == "no-store" :
+		return true
+	case req.Header.Get("Pragma") == "no-cache" :
+		return true
 	}
 	return false
 }
