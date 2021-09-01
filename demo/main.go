@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -23,33 +25,43 @@ func main() {
 		req.Write(rw)
 	}))
 
-	mux.Handle("/songs/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
+	mux.Handle("/status", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
 			rw.WriteHeader(http.StatusMethodNotAllowed)
-			fmt.Fprint(rw, "Method not allowed")
 			return
 		}
-
-		time.Sleep(500 * time.Millisecond)
-		body, err := ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
-		if err != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
+		url, _ := url.Parse(req.URL.String())
+		queryParams := url.Query()
+		status, _ := strconv.Atoi(queryParams.Get("status"))
+		if status == http.StatusMovedPermanently {
+			rw.Header().Set("Location", "/new-location")
 		}
-		if json.Valid(body) == false {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusCreated)
-		rw.Write(body)
+		rw.WriteHeader(status)
 	}))
 
-	mux.Handle("/api.json", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("{}"))
+	mux.Handle("/api/songs/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		switch {
+		case req.Method == http.MethodPut :
+		case req.Method == http.MethodPatch :
+		case req.Method == http.MethodDelete :
+			rw.WriteHeader(http.StatusNoContent)
+		case req.Method == http.MethodPost :
+			body, err := ioutil.ReadAll(req.Body)
+			defer req.Body.Close()
+			if err != nil {
+				rw.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if json.Valid(body) == false {
+				rw.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusCreated)
+			rw.Write(body)
+		default:
+			rw.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	}))
 
 	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

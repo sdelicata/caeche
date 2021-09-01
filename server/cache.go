@@ -34,12 +34,8 @@ func (pool CachePool) Save(res Response) {
 }
 
 func (pool CachePool) Get(key StorageKey) (Response, bool) {
-	success := "MISS"
 	res, ok := pool[key]
-	if ok == true {
-		success = "HIT"
-	}
-	log.Debugf("CACHE - Retreiving response {%+v} from cache pool [%s]", key, success)
+	log.Debugf("CACHE - Retreiving response {%+v} from cache pool", key)
 	return res, ok
 }
 
@@ -71,6 +67,24 @@ func IsNoCacheRequest(req *http.Request) bool {
 		return true
 	case req.Header.Get("Pragma") == "no-cache" :
 		return true
+	}
+	return false
+}
+
+func IsResponseCacheable(res *http.Response) bool {
+	switch {
+	case !IsStatusCacheable(res.StatusCode):
+		return false
+	}
+	return true
+}
+
+func IsStatusCacheable(status int) bool {
+	cacheableStatus := []int{200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501}
+	for _, v := range cacheableStatus {
+		if v == status {
+			return true
+		}
 	}
 	return false
 }

@@ -18,6 +18,7 @@ func NewReverseProxy(config config.Config) http.Handler {
 
 	return http.HandlerFunc(func (rw http.ResponseWriter, req *http.Request) {
 		start := time.Now()
+		var cacheFlag string
 
 		req.Host = config.Backend.Host
 		req.URL.Host = config.Backend.Host
@@ -25,10 +26,15 @@ func NewReverseProxy(config config.Config) http.Handler {
 		req.RequestURI = ""
 		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 
-		if IsRequestCacheable(req) {
+		if !IsRequestCacheable(req) {
+			cacheFlag = "NOT CACHEABLE"
+		} else {
 			key := NewStorageKeyFromRequest(req)
 			cachedResponse, ok := pool.Get(key)
-			if ok == true {
+			if !ok {
+				cacheFlag = "MISS"
+			} else {
+				cacheFlag = "HIT"
 				for name, values := range cachedResponse.ResponseHeaders {
 					for _, value := range values {
 						rw.Header().Set(name, value)
@@ -36,13 +42,14 @@ func NewReverseProxy(config config.Config) http.Handler {
 				}
 				rw.WriteHeader(cachedResponse.StatusCode)
 				rw.Write(cachedResponse.Body)
-				log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [HIT]",
+				log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",
 					start.UTC(),
 					remoteAddr,
 					req.Method,
 					req.URL.Scheme, req.URL.Host, req.URL.Path,
 					cachedResponse.StatusCode,
 					time.Since(start),
+					cacheFlag,
 				)
 				return
 			}
@@ -80,8 +87,7 @@ func NewReverseProxy(config config.Config) http.Handler {
 		}
 		rw.Write(body)
 
-		var cacheFlag string
-		if IsRequestCacheable(req) { // replace with IsResponseCacheable
+		if IsRequestCacheable(req) && IsResponseCacheable(res) {
 			response := Response{
 				URL:             req.URL,
 				Method:          req.Method,
@@ -90,9 +96,6 @@ func NewReverseProxy(config config.Config) http.Handler {
 				Body:            body,
 			}
 			pool.Save(response)
-			cacheFlag = "MISS"
-		} else {
-			cacheFlag = "NOT CACHEABLE"
 		}
 
 		log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",
