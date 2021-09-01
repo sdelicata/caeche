@@ -1,0 +1,10 @@
+{
+  "artist": {
+    "name": "Nirvana"
+  },
+  "album": {
+    "name": "Nevermind",
+    "release_date": "1991-09-24"
+  },
+  "title": "Smells Like Teen Spirit"
+}
