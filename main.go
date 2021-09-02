@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
 	"github.com/sdelicata/caeche/server"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 	"os"
+	"time"
 )
 
 func init() {
@@ -13,14 +16,21 @@ func init() {
 }
 
 func main() {
-
 	config, err := config.NewConfigFromFile("config.toml")
 	if err != nil {
 		log.Errorf("Error loading config file : %s", err)
 		return
 	}
 
-	server := server.NewServer(config)
+	cacheInMemory := cache.NewCacheInMemory(config.Cache.DefaultTTL)
+	reverseProxy := server.NewReverseProxy(config, cacheInMemory)
+
+	server := http.Server{
+		Addr: ":" + config.Port,
+		Handler: reverseProxy,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout: 30 * time.Second,
+	}
 	log.Infoln("Server starting...")
 	log.Fatalln(server.ListenAndServe())
 }

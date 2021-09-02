@@ -10,6 +10,7 @@ const (
 	DEFAULT_WRITE_TIMEOUT int = 10
 	DEFAULT_BACKEND_SCHEME string = "http"
 	DEFAULT_BACKEND_HOST string = ":80"
+	DEFAULT_CACHE_DEFAULT_TTL int = 3600
 )
 
 type Config struct {
@@ -17,11 +18,16 @@ type Config struct {
 	ReadTimeout int
 	WriteTimeout int
 	Backend BackendConfig
+	Cache CacheConfig
 }
 
 type BackendConfig struct {
 	Host   string
 	Scheme string
+}
+
+type CacheConfig struct {
+	DefaultTTL int
 }
 
 func NewConfigFromFile(filePath string) (Config, error) {
@@ -40,6 +46,9 @@ func NewConfigWithDefault() Config {
 		Backend: BackendConfig{
 			Host:   DEFAULT_BACKEND_HOST,
 			Scheme: DEFAULT_BACKEND_SCHEME,
+		},
+		Cache: CacheConfig{
+			DefaultTTL: DEFAULT_CACHE_DEFAULT_TTL,
 		},
 	}
 }

@@ -15,6 +15,7 @@ func TestFileOverridesDefaultValues(t *testing.T) {
 	const expectedWriteTimeout = 30
 	const expectedBackendHost = "domain.com:80"
 	const expectedBackendScheme = "https"
+	const expectedCacheDefaultTTL = 60
 
 	configContent := Config{
 		Port: expectedPort,
@@ -23,6 +24,9 @@ func TestFileOverridesDefaultValues(t *testing.T) {
 		Backend: BackendConfig{
 			Host:   expectedBackendHost,
 			Scheme: expectedBackendScheme,
+		},
+		Cache: CacheConfig{
+			DefaultTTL: expectedCacheDefaultTTL,
 		},
 	}
 
@@ -35,6 +39,7 @@ func TestFileOverridesDefaultValues(t *testing.T) {
 	assert.Equal(t, expectedWriteTimeout, config.WriteTimeout, "Wrong write timeout")
 	assert.Equal(t, expectedBackendHost, config.Backend.Host, "Wrong backend host")
 	assert.Equal(t, expectedBackendScheme, config.Backend.Scheme, "Wrong backend scheme")
+	assert.Equal(t, expectedCacheDefaultTTL, config.Cache.DefaultTTL, "Wrong cache default TTL")
 }
 
 func createTempFileFromConfig(config Config) string {

@@ -13,16 +13,22 @@ import (
 func main() {
 	mux := http.NewServeMux()
 
-	mux.Handle("/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/" {
-			http.NotFound(rw, req)
-			return
-		}
-
+	mux.Handle("/dump", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		time.Sleep(500 * time.Millisecond)
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("--- Request dump ---\n\n"))
 		req.Write(rw)
+	}))
+
+	mux.Handle("/cache-control", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
+			rw.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		url, _ := url.Parse(req.URL.String())
+		queryParams := url.Query()
+		val := queryParams.Get("val")
+		rw.Header().Set("Cache-Control", val)
 	}))
 
 	mux.Handle("/status", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

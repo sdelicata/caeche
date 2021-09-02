@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	cachePackage "github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -10,13 +11,14 @@ import (
 	"time"
 )
 
-func NewReverseProxy(config config.Config) http.Handler {
+type ReverseProxy http.Handler
+
+func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handler {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := http.DefaultClient
 
-	pool := NewCachePool()
-
 	return http.HandlerFunc(func (rw http.ResponseWriter, req *http.Request) {
+		log.Debug("-----------------------")
 		start := time.Now()
 		var cacheFlag string
 
@@ -26,22 +28,15 @@ func NewReverseProxy(config config.Config) http.Handler {
 		req.RequestURI = ""
 		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 
-		if !IsRequestCacheable(req) {
-			cacheFlag = "NOT CACHEABLE"
+		if !cache.AcceptsCache(req) {
+			cacheFlag = "NO CACHE"
 		} else {
-			key := NewStorageKeyFromRequest(req)
-			cachedResponse, ok := pool.Get(key)
+			cachedResponse, ok := cache.Get(req)
 			if !ok {
 				cacheFlag = "MISS"
 			} else {
 				cacheFlag = "HIT"
-				for name, values := range cachedResponse.ResponseHeaders {
-					for _, value := range values {
-						rw.Header().Set(name, value)
-					}
-				}
-				rw.WriteHeader(cachedResponse.StatusCode)
-				rw.Write(cachedResponse.Body)
+				cachePackage.WriteResponse(rw, cachedResponse)
 				log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",
 					start.UTC(),
 					remoteAddr,
@@ -62,7 +57,7 @@ func NewReverseProxy(config config.Config) http.Handler {
 			rw.WriteHeader(http.StatusBadGateway)
 			log.Error(err)
 			log.Infof("[%+v] %s %q %s://%s%s (%d) %+v",
-				time.Now().UTC(),
+				start.UTC(),
 				remoteAddr,
 				req.Method,
 				req.URL.Scheme, req.URL.Host, req.URL.Path,
@@ -71,7 +66,12 @@ func NewReverseProxy(config config.Config) http.Handler {
 			)
 			return
 		}
-		defer res.Body.Close()
+		defer func() {
+			err := res.Body.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
 
 		for name, values := range res.Header {
 			for _, value := range values {
@@ -81,21 +81,23 @@ func NewReverseProxy(config config.Config) http.Handler {
 		rw.WriteHeader(res.StatusCode)
 
 		body, err := ioutil.ReadAll(res.Body)
-
 		if err != nil {
-			log.Errorf("ERROR")
+			log.Fatal(err)
 		}
-		rw.Write(body)
+		_, err = rw.Write(body)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-		if IsRequestCacheable(req) && IsResponseCacheable(res) {
-			response := Response{
-				URL:             req.URL,
-				Method:          req.Method,
+		if cache.IsCacheable(res) {
+			cache.Save(cachePackage.Response{
+				URL:             res.Request.URL,
+				Method:          res.Request.Method,
 				StatusCode:      res.StatusCode,
 				ResponseHeaders: res.Header,
 				Body:            body,
-			}
-			pool.Save(response)
+				Created:		 start,
+			})
 		}
 
 		log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",

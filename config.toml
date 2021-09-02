@@ -3,3 +3,6 @@ port="8080"
 [backend]
 host="localhost:8000"
 scheme="http"
+
+[cache]
+defaultTTL=60
