@@ -96,7 +96,9 @@ func (cache *InMemory) newStorageKeyFromRequest(req *http.Request) StorageKey {
 }
 
 func (cache *InMemory) newStorageKeyFromResponse(response Response) StorageKey {
-	return StorageKey(fmt.Sprintf("%s_%s_%s", response.Method, response.URL, cache.hashHeaders(response.RequestHeaders)))
+	headers := response.RequestHeaders
+	headers.Del("X-Forwarded-For")
+	return StorageKey(fmt.Sprintf("%s_%s_%s", response.Method, response.URL, cache.hashHeaders(headers)))
 }
 
 func (cache *InMemory) hashHeaders(headers http.Header) string {
