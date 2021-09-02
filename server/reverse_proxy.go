@@ -81,6 +81,7 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,
 				StatusCode:      res.StatusCode,
+				RequestHeaders:  res.Request.Header,
 				ResponseHeaders: res.Header,
 				Body:            body,
 				Created:         start,

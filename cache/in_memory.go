@@ -1,6 +1,9 @@
 package cache
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"regexp"
@@ -89,12 +92,26 @@ func (cache *InMemory) Save(response Response) {
 }
 
 func (cache *InMemory) newStorageKeyFromRequest(req *http.Request) StorageKey {
-
-	return StorageKey(req.Method + "_" + req.URL.String())
+	return StorageKey(fmt.Sprintf("%s_%s_%s", req.Method, req.URL, cache.hashHeaders(req.Header)))
 }
 
 func (cache *InMemory) newStorageKeyFromResponse(response Response) StorageKey {
-	return StorageKey(response.Method + "_" + response.URL)
+	return StorageKey(fmt.Sprintf("%s_%s_%s", response.Method, response.URL, cache.hashHeaders(response.RequestHeaders)))
+}
+
+func (cache *InMemory) hashHeaders(headers http.Header) string {
+	jsonData, err := json.Marshal(headers)
+	if err != nil {
+		log.Error(err)
+		return ""
+	}
+	hash := sha256.New()
+	_, err = hash.Write([]byte(jsonData))
+	if err != nil {
+		log.Error(err)
+		return ""
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func (cache *InMemory) isTooOldForRequest(response Response, req *http.Request) bool {

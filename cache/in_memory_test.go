@@ -256,39 +256,39 @@ func TestStatusIsCacheable(t *testing.T) {
 
 func TestIsCacheable(t *testing.T) {
 	testCases := []struct {
-		desc      string
-		headers   map[string]string
-		expected  bool
+		desc     string
+		headers  map[string]string
+		expected bool
 	}{
 		{
-			desc:      "Response without Cache-Control header is cacheable",
-			headers:   map[string]string{},
-			expected:  true,
+			desc:     "Response without Cache-Control header is cacheable",
+			headers:  map[string]string{},
+			expected: true,
 		},
 		{
-			desc:      "Response with Cache-Control: max-age=3600 is cacheable",
-			headers:   map[string]string{"Cache-Control": "max-age=3600"},
-			expected:  true,
+			desc:     "Response with Cache-Control: max-age=3600 is cacheable",
+			headers:  map[string]string{"Cache-Control": "max-age=3600"},
+			expected: true,
 		},
 		{
-			desc:      "Response with Cache-Control: no-cache isn't cacheable",
-			headers:   map[string]string{"Cache-Control": "no-cache"},
-			expected:  false,
+			desc:     "Response with Cache-Control: no-cache isn't cacheable",
+			headers:  map[string]string{"Cache-Control": "no-cache"},
+			expected: false,
 		},
 		{
-			desc:      "Response with Cache-Control: no-store isn't cacheable",
-			headers:   map[string]string{"Cache-Control": "no-store"},
-			expected:  false,
+			desc:     "Response with Cache-Control: no-store isn't cacheable",
+			headers:  map[string]string{"Cache-Control": "no-store"},
+			expected: false,
 		},
 		{
-			desc:      "Response with Cache-Control: max-age=0 isn't cacheable",
-			headers:   map[string]string{"Cache-Control": "max-age=0"},
-			expected:  false,
+			desc:     "Response with Cache-Control: max-age=0 isn't cacheable",
+			headers:  map[string]string{"Cache-Control": "max-age=0"},
+			expected: false,
 		},
 		{
-			desc:      "Response with Cache-Control: s-max-age=0 isn't cacheable",
-			headers:   map[string]string{"Cache-Control": "s-max-age=0"},
-			expected:  false,
+			desc:     "Response with Cache-Control: s-max-age=0 isn't cacheable",
+			headers:  map[string]string{"Cache-Control": "s-max-age=0"},
+			expected: false,
 		},
 	}
 	for _, test := range testCases {
@@ -324,4 +324,37 @@ func TestSave(t *testing.T) {
 	}
 	cache.Save(response)
 	assert.Len(t, store, 1)
+}
+
+func TestSaveVariationsOfTheSameRessource(t *testing.T) {
+	cache := NewInMemory(3600)
+	store := map[StorageKey]Response{}
+	cache.SetStore(store)
+
+	response := Response{
+		URL:        "http://localhost",
+		Method:     http.MethodGet,
+		StatusCode: http.StatusOK,
+		Created:    time.Now(),
+	}
+	cache.Save(response)
+
+	responseWithQueryParams := Response{
+		URL:        "http://localhost?foo=bar",
+		Method:     http.MethodGet,
+		StatusCode: http.StatusOK,
+		Created:    time.Now(),
+	}
+	cache.Save(responseWithQueryParams)
+
+	responseWithRequestHeaders := Response{
+		URL:            "http://localhost",
+		Method:         http.MethodGet,
+		StatusCode:     http.StatusOK,
+		RequestHeaders: http.Header{},
+		Created:        time.Now(),
+	}
+	responseWithRequestHeaders.RequestHeaders.Set("X-Foo", "bar")
+	cache.Save(responseWithRequestHeaders)
+	assert.Len(t, store, 3)
 }
