@@ -66,11 +66,13 @@ func (cache *InMemory) IsValidForRequest(response Response, req *http.Request) b
 }
 
 func (cache *InMemory) IsCacheable(res *http.Response) bool {
-	switch {
-	case !cache.isStatusCacheable(res.StatusCode):
+	if !cache.isStatusCacheable(res.StatusCode) {
+		log.Debugf("Response status code non cacheable")
 		return false
-		//case cache.getTTL(res.Header) == time.Duration(0) :
-		//	return false
+	}
+	if ttl, ok := cache.getTTL(res.Header); ok && ttl == time.Duration(0) {
+		log.Debugf("Response non cacheable")
+		return false
 	}
 	return true
 }
@@ -87,6 +89,7 @@ func (cache *InMemory) Save(response Response) {
 }
 
 func (cache *InMemory) newStorageKeyFromRequest(req *http.Request) StorageKey {
+
 	return StorageKey(req.Method + "_" + req.URL.String())
 }
 
