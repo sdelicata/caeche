@@ -1,11 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"crypto/tls"
 	cachePackage "github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -67,23 +68,36 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 		}
 		rw.WriteHeader(res.StatusCode)
 
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = rw.Write(body)
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case <-time.Tick(10 * time.Millisecond):
+					rw.(http.Flusher).Flush()
+				case <-done:
+					return
+				}
+			}
+		}()
+
+		var buffer bytes.Buffer
+		mrw := io.MultiWriter(rw, &buffer)
+		_, err = io.Copy(mrw, res.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
 
+		close(done)
+
 		if cache.IsCacheable(res) {
+			log.Debugf("%+v", buffer)
 			cache.Save(cachePackage.Response{
 				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,
 				StatusCode:      res.StatusCode,
 				RequestHeaders:  res.Request.Header,
 				ResponseHeaders: res.Header,
-				Body:            body,
+				Body:            buffer.Bytes(),
 				Created:         start,
 			})
 		}

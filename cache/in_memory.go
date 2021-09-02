@@ -108,7 +108,7 @@ func (cache *InMemory) hashHeaders(headers http.Header) string {
 		return ""
 	}
 	hash := sha256.New()
-	_, err = hash.Write([]byte(jsonData))
+	_, err = hash.Write(jsonData)
 	if err != nil {
 		log.Error(err)
 		return ""

@@ -70,6 +70,18 @@ func main() {
 		}
 	}))
 
+	mux.Handle("/stream", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("Here comes "))
+		rw.(http.Flusher).Flush()
+		time.Sleep(2 * time.Second)
+		rw.Write([]byte("pieces of my "))
+		rw.(http.Flusher).Flush()
+		time.Sleep(2 * time.Second)
+		rw.Write([]byte("streamed content"))
+		rw.(http.Flusher).Flush()
+	}))
+
 	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		scheme := "http"
 		if req.TLS != nil {

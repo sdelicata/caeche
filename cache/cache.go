@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"bytes"
 	log "github.com/sirupsen/logrus"
+	"io"
 	"net/http"
 	"time"
 )
@@ -32,7 +34,7 @@ func WriteResponse(rw http.ResponseWriter, response Response)  {
 		}
 	}
 	rw.WriteHeader(response.StatusCode)
-	_, err := rw.Write(response.Body)
+	_, err := io.Copy(rw, io.NopCloser(bytes.NewBuffer(response.Body)))
 	if err != nil {
 		log.Fatal(err)
 	}

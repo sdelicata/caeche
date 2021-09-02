@@ -193,13 +193,13 @@ func TestIsValidForRequest(t *testing.T) {
 			expected:  true,
 		},
 		{
-			desc:      "Response too old for a raquest with Cache-Control: max-age=10",
+			desc:      "Response too old for a request with Cache-Control: max-age=10",
 			headers:   map[string]string{"Cache-Control": "max-age=10"},
 			expiresIn: 60,
 			expected:  false,
 		},
 		{
-			desc:      "Response too old for a raquest with Cache-Control: s-max-age=10",
+			desc:      "Response too old for a request with Cache-Control: s-max-age=10",
 			headers:   map[string]string{"Cache-Control": "s-max-age=10"},
 			expiresIn: 60,
 			expected:  false,
@@ -326,7 +326,7 @@ func TestSave(t *testing.T) {
 	assert.Len(t, store, 1)
 }
 
-func TestSaveVariationsOfTheSameRessource(t *testing.T) {
+func TestSaveVariationsOfTheSameResource(t *testing.T) {
 	cache := NewInMemory(3600)
 	store := map[StorageKey]Response{}
 	cache.SetStore(store)
