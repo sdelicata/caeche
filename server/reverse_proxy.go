@@ -17,10 +17,9 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := http.DefaultClient
 
-	return http.HandlerFunc(func (rw http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		log.Debug("-----------------------")
 		start := time.Now()
-		var cacheFlag string
 
 		req.Host = config.Backend.Host
 		req.URL.Host = config.Backend.Host
@@ -28,39 +27,27 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 		req.RequestURI = ""
 		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 
-		if !cache.AcceptsCache(req) {
-			cacheFlag = "NO CACHE"
-		} else {
+		if cache.AcceptsCache(req) {
 			cachedResponse, ok := cache.Get(req)
-			if !ok {
-				cacheFlag = "MISS"
-			} else {
-				cacheFlag = "HIT"
+			if ok && cache.IsValidForRequest(cachedResponse, req) {
 				cachePackage.WriteResponse(rw, cachedResponse)
-				log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",
-					start.UTC(),
-					remoteAddr,
-					req.Method,
-					req.URL.Scheme, req.URL.Host, req.URL.Path,
-					cachedResponse.StatusCode,
-					time.Since(start),
-					cacheFlag,
-				)
+				logRequest(req, start, remoteAddr, cachedResponse.StatusCode, "HIT")
 				return
 			}
 		}
 
 		req.Header.Set("X-Forwarded-For", remoteAddr)
 
+		log.Debugf("Fetching %s", req.URL)
 		res, err := client.Do(req)
 		if err != nil {
 			rw.WriteHeader(http.StatusBadGateway)
 			log.Error(err)
-			log.Infof("[%+v] %s %q %s://%s%s (%d) %+v",
+			log.Infof("[%+v] %s %q %s (%d) %+v",
 				start.UTC(),
 				remoteAddr,
 				req.Method,
-				req.URL.Scheme, req.URL.Host, req.URL.Path,
+				req.URL,
 				http.StatusBadGateway,
 				time.Since(start),
 			)
@@ -91,25 +78,27 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 
 		if cache.IsCacheable(res) {
 			cache.Save(cachePackage.Response{
-				URL:             res.Request.URL,
+				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,
 				StatusCode:      res.StatusCode,
 				ResponseHeaders: res.Header,
 				Body:            body,
-				Created:		 start,
+				Created:         start,
 			})
 		}
 
-		log.Infof("[%+v] %s \"%s\" %s://%s%s (%d) %+v [%s]",
-			start.UTC(),
-			remoteAddr,
-			req.Method,
-			req.URL.Scheme, req.URL.Host, req.URL.Path,
-			res.StatusCode,
-			time.Since(start),
-			cacheFlag,
-		)
+		logRequest(req, start, remoteAddr, res.StatusCode, "MISS")
 	})
 }
 
-
+func logRequest(req *http.Request, start time.Time, remoteAddr string, statusCode int, flag string) {
+	log.Infof("[%+v] %s \"%s\" %s (%d) %+v [%s]",
+		start.UTC(),
+		remoteAddr,
+		req.Method,
+		req.URL,
+		statusCode,
+		time.Since(start),
+		flag,
+	)
+}

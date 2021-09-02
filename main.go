@@ -22,7 +22,7 @@ func main() {
 		return
 	}
 
-	cacheInMemory := cache.NewCacheInMemory(config.Cache.DefaultTTL)
+	cacheInMemory := cache.NewInMemory(config.Cache.DefaultTTL)
 	reverseProxy := server.NewReverseProxy(config, cacheInMemory)
 
 	server := http.Server{
