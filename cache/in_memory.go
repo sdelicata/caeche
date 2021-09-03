@@ -88,7 +88,7 @@ func (cache *InMemory) Save(response Response) {
 	}
 	response.Expires = response.Created.Add(ttl)
 	cache.store[key] = response
-	log.Debugf("Saving %q : Response saved", key)
+	log.Debugf("Saving %q : Response saved for %s", key, ttl)
 }
 
 func (cache *InMemory) Purge(req *http.Request) {

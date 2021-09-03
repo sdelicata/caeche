@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"crypto/tls"
 	cachePackage "github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
 	log "github.com/sirupsen/logrus"
@@ -12,42 +11,57 @@ import (
 	"time"
 )
 
-type ReverseProxy http.Handler
+type ReverseProxy struct {
+	config config.Config
+	cache  cachePackage.Cache
+}
 
-func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handler {
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	client := http.DefaultClient
+func NewReverseProxy(config config.Config, cache cachePackage.Cache) *ReverseProxy {
+	return &ReverseProxy{
+		config: config,
+		cache:  cache,
+	}
+}
 
+func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		log.Debug("-----------------------")
 		start := time.Now()
+		var cacheHit bool
+		var cachedResponse cachePackage.Response
 
-		req.Host = config.Backend.Host
-		req.URL.Host = config.Backend.Host
-		req.URL.Scheme = config.Backend.Scheme
+		// Prepare request to forward
+		req.Host = reverseProxy.config.Backend.Host
+		req.URL.Host = reverseProxy.config.Backend.Host
+		req.URL.Scheme = reverseProxy.config.Backend.Scheme
 		req.RequestURI = ""
-		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 
-		acceptCache := cache.AcceptsCache(req)
+		// Serve cache when it's possible
+		acceptCache := reverseProxy.cache.AcceptsCache(req)
 		if acceptCache {
-			cachedResponse, ok := cache.Get(req)
-			if ok && cache.IsValidForRequest(cachedResponse, req) {
+			cachedResponse, cacheHit = reverseProxy.cache.Get(req)
+			if cacheHit && reverseProxy.cache.IsValidForRequest(cachedResponse, req) {
 				cachePackage.WriteResponse(rw, cachedResponse)
-				logRequest(req, start, remoteAddr, cachedResponse.StatusCode, "HIT")
+				logRequest(req, start, cachedResponse.StatusCode, "HIT")
 				return
 			}
 		}
 
-		req.Header.Set("X-Forwarded-For", remoteAddr)
+		// If not, forward the request to the backend
+		res, err := reverseProxy.fetch(req)
 
-		log.Debugf("Fetching %s", req.URL)
-		res, err := client.Do(req)
+		// Error while fetching from backend: serve stale cache or 502
 		if err != nil {
-			rw.WriteHeader(http.StatusBadGateway)
 			log.Error(err)
-			log.Infof("[%+v] %s %q %s (%d) %+v",
+			if cacheHit {
+				log.Debug("Serving stale response")
+				cachePackage.WriteResponse(rw, cachedResponse)
+				logRequest(req, start, cachedResponse.StatusCode, "HIT")
+				return
+			}
+			rw.WriteHeader(http.StatusBadGateway)
+			log.Infof("[%+v] %q %s (%d) %+v",
 				start.UTC(),
-				remoteAddr,
 				req.Method,
 				req.URL,
 				http.StatusBadGateway,
@@ -55,13 +69,8 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 			)
 			return
 		}
-		defer func() {
-			err := res.Body.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-		}()
 
+		// Serve fetched response
 		for name, values := range res.Header {
 			for _, value := range values {
 				rw.Header().Set(name, value)
@@ -87,11 +96,11 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		close(done)
 
-		if acceptCache && cache.IsCacheable(res) {
-			cache.Save(cachePackage.Response{
+		// Save cache if the response is cacheable
+		if acceptCache && reverseProxy.cache.IsCacheable(res) {
+			reverseProxy.cache.Save(cachePackage.Response{
 				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,
 				StatusCode:      res.StatusCode,
@@ -102,14 +111,31 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 			})
 		}
 
-		logRequest(req, start, remoteAddr, res.StatusCode, "MISS")
+		logRequest(req, start, res.StatusCode, "MISS")
 	})
 }
 
-func logRequest(req *http.Request, start time.Time, remoteAddr string, statusCode int, flag string) {
-	log.Infof("[%+v] %s \"%s\" %s (%d) %+v [%s]",
+func (reverseProxy *ReverseProxy) fetch(req *http.Request) (*http.Response, error) {
+	log.Debugf("Fetching %s", req.URL)
+	remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
+	req.Header.Set("X-Forwarded-For", remoteAddr)
+	res, err := http.DefaultClient.Do(req)
+	delete(req.Header, "X-Forwarded-For")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	return res, nil
+}
+
+func logRequest(req *http.Request, start time.Time, statusCode int, flag string) {
+	log.Infof("[%+v] \"%s\" %s (%d) %+v [%s]",
 		start.UTC(),
-		remoteAddr,
 		req.Method,
 		req.URL,
 		statusCode,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"github.com/justinas/alice"
 	"github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
@@ -14,6 +15,7 @@ import (
 func init() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 }
 
 func main() {
@@ -27,7 +29,7 @@ func main() {
 	reverseProxy := server.NewReverseProxy(cfg, cacheInMemory)
 	purgeMiddleWare := cache.NewPurgeMiddleware(cacheInMemory)
 
-	chain := alice.New(purgeMiddleWare).Then(reverseProxy)
+	chain := alice.New(purgeMiddleWare).Then(reverseProxy.GetHandler())
 
 	s := http.Server{
 		Addr:         ":" + cfg.Port,
