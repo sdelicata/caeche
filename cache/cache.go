@@ -14,6 +14,7 @@ type Cache interface {
 	IsValidForRequest(response Response, req *http.Request) bool
 	IsCacheable(req *http.Response) bool
 	Save(res Response)
+	Purge(req *http.Request)
 }
 
 type Response struct {
@@ -23,11 +24,11 @@ type Response struct {
 	RequestHeaders  http.Header
 	ResponseHeaders http.Header
 	Body            []byte
-	Created			time.Time
-	Expires			time.Time
+	Created         time.Time
+	Expires         time.Time
 }
 
-func WriteResponse(rw http.ResponseWriter, response Response)  {
+func WriteResponse(rw http.ResponseWriter, response Response) {
 	for name, values := range response.ResponseHeaders {
 		for _, value := range values {
 			rw.Header().Set(name, value)

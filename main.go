@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/justinas/alice"
 	"github.com/sdelicata/caeche/cache"
 	"github.com/sdelicata/caeche/config"
 	"github.com/sdelicata/caeche/server"
@@ -16,21 +17,24 @@ func init() {
 }
 
 func main() {
-	config, err := config.NewConfigFromFile("config.toml")
+	cfg, err := config.NewConfigFromFile("config.toml")
 	if err != nil {
 		log.Errorf("Error loading config file : %s", err)
 		return
 	}
 
-	cacheInMemory := cache.NewInMemory(config.Cache.DefaultTTL)
-	reverseProxy := server.NewReverseProxy(config, cacheInMemory)
+	cacheInMemory := cache.NewInMemory(cfg.Cache.DefaultTTL)
+	reverseProxy := server.NewReverseProxy(cfg, cacheInMemory)
+	purgeMiddleWare := cache.NewPurgeMiddleware(cacheInMemory)
 
-	server := http.Server{
-		Addr: ":" + config.Port,
-		Handler: reverseProxy,
+	chain := alice.New(purgeMiddleWare).Then(reverseProxy)
+
+	s := http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      chain,
 		WriteTimeout: 30 * time.Second,
-		ReadTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
 	}
 	log.Infoln("Server starting...")
-	log.Fatalln(server.ListenAndServe())
+	log.Fatalln(s.ListenAndServe())
 }

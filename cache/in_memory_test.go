@@ -358,3 +358,19 @@ func TestSaveVariationsOfTheSameResource(t *testing.T) {
 	cache.Save(responseWithRequestHeaders)
 	assert.Len(t, store, 3)
 }
+
+func TestPurge(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+	cache := NewInMemory(3600)
+	key := cache.newStorageKeyFromRequest(req)
+	store := map[StorageKey]Response{key: {
+		URL:        req.URL.String(),
+		Method:     req.Method,
+		StatusCode: http.StatusOK,
+		Created:    time.Now().Add(3600 * -1 * time.Second),
+		Expires:    time.Now().Add(3600 * time.Second),
+	}}
+	cache.SetStore(store)
+	cache.Purge(req)
+	assert.Len(t, store, 0)
+}

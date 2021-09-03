@@ -28,7 +28,8 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 		req.RequestURI = ""
 		remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 
-		if cache.AcceptsCache(req) {
+		acceptCache := cache.AcceptsCache(req)
+		if acceptCache {
 			cachedResponse, ok := cache.Get(req)
 			if ok && cache.IsValidForRequest(cachedResponse, req) {
 				cachePackage.WriteResponse(rw, cachedResponse)
@@ -89,8 +90,7 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) http.Handle
 
 		close(done)
 
-		if cache.IsCacheable(res) {
-			log.Debugf("%+v", buffer)
+		if acceptCache && cache.IsCacheable(res) {
 			cache.Save(cachePackage.Response{
 				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,

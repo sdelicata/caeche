@@ -31,8 +31,8 @@ func (cache *InMemory) SetStore(store map[StorageKey]Response) {
 }
 
 func (cache *InMemory) AcceptsCache(req *http.Request) bool {
-	if req.Header.Get("Pragma") == "no-cache" ||
-		!(req.Method == http.MethodGet || req.Method == http.MethodHead) ||
+	if !(req.Method == http.MethodGet || req.Method == http.MethodHead) ||
+		req.Header.Get("Pragma") == "no-cache" ||
 		strings.Contains(req.Header.Get("Cache-Control"), "no-cache") ||
 		strings.Contains(req.Header.Get("Cache-Control"), "no-store") ||
 		strings.Contains(req.Header.Get("Cache-Control"), "max-age=0") ||
@@ -89,6 +89,16 @@ func (cache *InMemory) Save(response Response) {
 	response.Expires = response.Created.Add(ttl)
 	cache.store[key] = response
 	log.Debugf("Saving %q : Response saved", key)
+}
+
+func (cache *InMemory) Purge(req *http.Request) {
+	pattern := fmt.Sprintf("%s_%s", req.URL, cache.hashHeaders(req.Header))
+	for key := range cache.store {
+		if strings.Contains(string(key), pattern) {
+			delete(cache.store, key)
+			log.Debugf("Purging %s", key)
+		}
+	}
 }
 
 func (cache *InMemory) newStorageKeyFromRequest(req *http.Request) StorageKey {
