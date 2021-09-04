@@ -27,7 +27,7 @@ func NewReverseProxy(config config.Config, cache cachePackage.Cache) *ReversePro
 func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		log.Debug("-----------------------")
-		start := time.Now()
+		start := time.Now().UTC()
 		var cacheHit bool
 		var cachedResponse cachePackage.Response
 
@@ -56,7 +56,7 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 			log.Error(err)
 			if cacheHit {
 				log.Debug("Serving stale response")
-				rw.Header().Set("Warning", "110 Caeche/1.0.0 \"This response comes from a stale cache\"")  // https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.1.2
+				rw.Header().Set("Warning", "110 Caeche/1.0.0 \"This response comes from a stale cache\"") // https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.1.2
 				cachePackage.WriteResponse(rw, cachedResponse)
 				logRequest(req, start, cachedResponse.StatusCode, "HIT")
 				return
@@ -126,6 +126,10 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 
 		// Save cache if the response is cacheable
 		if acceptCache && reverseProxy.cache.IsCacheable(res) {
+			date, err := http.ParseTime(res.Header.Get("Date"))
+			if err != nil {
+				date = start
+			}
 			reverseProxy.cache.Save(cachePackage.Response{
 				URL:             res.Request.URL.String(),
 				Method:          res.Request.Method,
@@ -133,7 +137,7 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 				RequestHeaders:  res.Request.Header,
 				ResponseHeaders: res.Header,
 				Body:            buffer.Bytes(),
-				Created:         start,
+				Created:         date,
 			})
 		}
 

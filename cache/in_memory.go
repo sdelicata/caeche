@@ -135,7 +135,7 @@ func (cache *InMemory) isTooOldForRequest(response Response, req *http.Request) 
 }
 
 func (cache *InMemory) hasExpired(response Response) bool {
-	return response.Expires.Before(time.Now())
+	return response.Expires.Before(time.Now().UTC())
 }
 
 func (cache *InMemory) isStatusCacheable(status int) bool {
