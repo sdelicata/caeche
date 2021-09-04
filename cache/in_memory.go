@@ -49,7 +49,7 @@ func (cache *InMemory) Get(req *http.Request) (Response, bool) {
 	key := cache.newStorageKeyFromRequest(req)
 	response, ok := cache.store[key]
 	if !ok {
-		log.Debugf("Getting %q : Response not found", key)
+		log.Debugf("Getting %q : Response not found in cache", key)
 		return response, ok
 	}
 	log.Debugf("Getting %q : Response retrieved", key)

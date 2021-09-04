@@ -7,6 +7,7 @@ import (
 	"github.com/sdelicata/caeche/config"
 	"github.com/sdelicata/caeche/server"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 	"net/http"
 	"os"
 	"time"
@@ -15,7 +16,6 @@ import (
 func init() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 }
 
 func main() {
@@ -24,6 +24,8 @@ func main() {
 		log.Errorf("Error loading config file : %s", err)
 		return
 	}
+
+	initTransport(cfg.Backend.Scheme)
 
 	cacheInMemory := cache.NewInMemory(cfg.Cache.DefaultTTL)
 	reverseProxy := server.NewReverseProxy(cfg, cacheInMemory)
@@ -38,5 +40,16 @@ func main() {
 		ReadTimeout:  30 * time.Second,
 	}
 	log.Infoln("Server starting...")
-	log.Fatalln(s.ListenAndServe())
+	if cfg.Backend.Scheme == "https" {
+		log.Fatalln(s.ListenAndServeTLS("cert.pem", "key.pem"))
+	} else {
+		log.Fatalln(s.ListenAndServe())
+	}
+}
+
+func initTransport(scheme string) {
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	if scheme == "https" {
+		http2.ConfigureTransport(http.DefaultTransport.(*http.Transport))
+	}
 }

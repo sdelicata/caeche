@@ -72,10 +72,10 @@ func main() {
 
 	mux.Handle("/stream", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("Here comes "))
+		rw.Write([]byte("Here comes \n"))
 		rw.(http.Flusher).Flush()
 		time.Sleep(2 * time.Second)
-		rw.Write([]byte("pieces of my "))
+		rw.Write([]byte("pieces of my \n"))
 		rw.(http.Flusher).Flush()
 		time.Sleep(2 * time.Second)
 		rw.Write([]byte("streamed content"))
@@ -91,5 +91,6 @@ func main() {
 		mux.ServeHTTP(rw, req)
 	})
 
-	http.ListenAndServe(":8000", handler)
+	go http.ListenAndServe(":8000", handler)
+	http.ListenAndServeTLS(":4443", "./cert.pem", "./key.pem", handler)
 }
