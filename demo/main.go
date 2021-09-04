@@ -47,11 +47,11 @@ func main() {
 
 	mux.Handle("/api/songs/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		switch {
-		case req.Method == http.MethodPut :
-		case req.Method == http.MethodPatch :
-		case req.Method == http.MethodDelete :
+		case req.Method == http.MethodPut:
+		case req.Method == http.MethodPatch:
+		case req.Method == http.MethodDelete:
 			rw.WriteHeader(http.StatusNoContent)
-		case req.Method == http.MethodPost :
+		case req.Method == http.MethodPost:
 			body, err := ioutil.ReadAll(req.Body)
 			defer req.Body.Close()
 			if err != nil {
@@ -80,6 +80,17 @@ func main() {
 		time.Sleep(2 * time.Second)
 		rw.Write([]byte("streamed content"))
 		rw.(http.Flusher).Flush()
+	}))
+
+	mux.Handle("/trailer", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.Header().Set("Trailer", "X-Foo")
+		rw.WriteHeader(http.StatusOK)
+		rw.(http.Flusher).Flush()
+		rw.Write([]byte("First part before trailer\n"))
+		rw.Header().Set("X-Foo", "bar")
+		rw.(http.Flusher).Flush()
+		rw.Write([]byte("Second part after trailer"))
 	}))
 
 	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

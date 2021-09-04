@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -49,12 +50,6 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 
 		// If not, forward the request to the backend
 		res, err := reverseProxy.fetch(req)
-		defer func() {
-			err := res.Body.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-		}()
 
 		// Error while fetching from backend: serve stale cache or 502
 		if err != nil {
@@ -74,6 +69,13 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 				time.Since(start),
 			)
 			return
+		} else {
+			defer func() {
+				err := res.Body.Close()
+				if err != nil {
+					log.Fatal(err)
+				}
+			}()
 		}
 
 		// Serve fetched response
@@ -82,7 +84,14 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 				rw.Header().Set(name, value)
 			}
 		}
-		rw.WriteHeader(res.StatusCode)
+
+		var trailerKeys []string
+		for key := range res.Trailer {
+			trailerKeys = append(trailerKeys, key)
+		}
+		if len(trailerKeys) > 0 {
+			rw.Header().Set("Trailer", strings.Join(trailerKeys, ","))
+		}
 
 		done := make(chan bool)
 		go func() {
@@ -96,12 +105,22 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 			}
 		}()
 
+		rw.WriteHeader(res.StatusCode)
+
 		var buffer bytes.Buffer
 		mrw := io.MultiWriter(rw, &buffer)
 		_, err = io.Copy(mrw, res.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		for key, values := range res.Trailer {
+			for _, value := range values {
+				rw.Header().Set(key, value)
+				res.Header.Set(key, value)
+			}
+		}
+
 		close(done)
 
 		// Save cache if the response is cacheable

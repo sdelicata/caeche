@@ -50,6 +50,9 @@ func main() {
 func initTransport(scheme string) {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	if scheme == "https" {
-		http2.ConfigureTransport(http.DefaultTransport.(*http.Transport))
+		err := http2.ConfigureTransport(http.DefaultTransport.(*http.Transport))
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
