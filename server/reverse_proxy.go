@@ -56,6 +56,7 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 			log.Error(err)
 			if cacheHit {
 				log.Debug("Serving stale response")
+				rw.Header().Set("Warning", "110 Caeche/1.0.0 \"This response comes from a stale cache\"")  // https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.1.2
 				cachePackage.WriteResponse(rw, cachedResponse)
 				logRequest(req, start, cachedResponse.StatusCode, "HIT")
 				return
