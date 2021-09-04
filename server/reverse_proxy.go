@@ -8,18 +8,19 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type ReverseProxy struct {
-	config config.Config
-	cache  cachePackage.Cache
+	config         config.Config
+	cache          cachePackage.Cache
 }
 
 func NewReverseProxy(config config.Config, cache cachePackage.Cache) *ReverseProxy {
 	return &ReverseProxy{
-		config: config,
-		cache:  cache,
+		config:         config,
+		cache:          cache,
 	}
 }
 
@@ -76,7 +77,12 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 				rw.Header().Set(name, value)
 			}
 		}
-		rw.WriteHeader(res.StatusCode)
+
+		trailerKeys := []string{}
+		for key := range res.Trailer {
+			trailerKeys = append(trailerKeys, key)
+		}
+		rw.Header().Set("Trailer", strings.Join(trailerKeys, ","))
 
 		done := make(chan bool)
 		go func() {
@@ -90,12 +96,21 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 			}
 		}()
 
+		rw.WriteHeader(res.StatusCode)
+
 		var buffer bytes.Buffer
 		mrw := io.MultiWriter(rw, &buffer)
 		_, err = io.Copy(mrw, res.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		for key, values := range res.Trailer {
+			for _, value := range values {
+				rw.Header().Set(key, value)
+			}
+		}
+
 		close(done)
 
 		// Save cache if the response is cacheable
