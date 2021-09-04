@@ -38,10 +38,14 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 		req.RequestURI = ""
 
 		// Serve cache when it's possible
-		acceptCache := reverseProxy.cache.AcceptsCache(req)
+		acceptCache := cachePackage.AcceptsCache(req)
 		if acceptCache {
 			cachedResponse, cacheHit = reverseProxy.cache.Get(req)
-			if cacheHit && reverseProxy.cache.IsValidForRequest(cachedResponse, req) {
+			if cacheHit && cachePackage.IsValidForRequest(cachedResponse, req) {
+				if cachePackage.IsNotModified(req) {
+					rw.WriteHeader(http.StatusNotModified)
+					return
+				}
 				cachePackage.WriteResponse(rw, cachedResponse)
 				logRequest(req, start, cachedResponse.StatusCode, "HIT")
 				return
@@ -125,7 +129,7 @@ func (reverseProxy *ReverseProxy) GetHandler() http.Handler {
 		close(done)
 
 		// Save cache if the response is cacheable
-		if acceptCache && reverseProxy.cache.IsCacheable(res) {
+		if acceptCache && cachePackage.IsCacheable(res) {
 			date, err := http.ParseTime(res.Header.Get("Date"))
 			if err != nil {
 				date = start
@@ -149,12 +153,22 @@ func (reverseProxy *ReverseProxy) fetch(req *http.Request) (*http.Response, erro
 	log.Debugf("Fetching %s", req.URL)
 	remoteAddr, _, _ := net.SplitHostPort(req.RemoteAddr)
 	req.Header.Set("X-Forwarded-For", remoteAddr)
+	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	res, err := http.DefaultClient.Do(req)
 	delete(req.Header, "X-Forwarded-For")
 	if err != nil {
 		return nil, err
 	}
+	removeHopByHop(&res.Header)
 	return res, nil
+}
+
+func removeHopByHop(headers *http.Header) {
+	for _, hopByHopHeader := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "TE", "Trailers", "Transfer-Encoding", "Upgrade"} {
+		delete(*headers, hopByHopHeader)
+	}
 }
 
 func logRequest(req *http.Request, start time.Time, statusCode int, flag string) {

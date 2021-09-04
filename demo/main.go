@@ -70,6 +70,14 @@ func main() {
 		}
 	}))
 
+	mux.Handle("/hop-by-hop", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("Connection", "Keep-Alive")
+		rw.Header().Set("Keep-Alive", "timeout=5, max=1000")
+		rw.Header().Set("Proxy-Authenticate", "Basic")
+		rw.Header().Set("Transfer-Encoding", "chunked")
+		rw.WriteHeader(http.StatusOK)
+	}))
+
 	mux.Handle("/stream", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("Here comes \n"))

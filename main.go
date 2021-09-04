@@ -27,7 +27,7 @@ func main() {
 
 	initTransport(cfg.Backend.Scheme)
 
-	cacheInMemory := cache.NewInMemory(cfg.Cache.DefaultTTL)
+	cacheInMemory := cache.NewInMemory(cfg.DefaultTTL)
 	reverseProxy := server.NewReverseProxy(cfg, cacheInMemory)
 	purgeMiddleWare := cache.NewPurgeMiddleware(cacheInMemory)
 
